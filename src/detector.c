@@ -1152,10 +1152,10 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
 			//第一层
 			state.index = 0;
 			layer l_0 = net.layers[0];
+
 			static float l_0_outputs[5537792];
 			mall_ptr_array(l_0_outputs, l_0.output);
 
-			//做个实验，写个函数，如何把 l_0_outputs[5537792] 和 l_0.outputs作为参数，使l_0_outputs的取值和l_0.outputs一样。
 			forward_convolutional_layer(l_0, state);
 			state.input = l_0.output;
 
