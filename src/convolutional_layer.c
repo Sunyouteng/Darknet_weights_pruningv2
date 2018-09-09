@@ -668,9 +668,9 @@ void forward_convolutional_layer(convolutional_layer l, network_state state)
     int out_w = convolutional_out_width(l);
     int i;
 
-    fill_cpu(l.outputs*l.batch, 0, l.output, 1);
+    fill_cpu(l.outputs*l.batch, 0, l.output, 1);//输出结果数组的初始化。
 
-    if(l.xnor){
+    if(l.xnor){//为0
         if (!l.align_bit_weights) {
             binarize_weights(l.weights, l.n, l.c*l.size*l.size, l.binary_weights);
             //printf("\n binarize_weights l.align_bit_weights = %p \n", l.align_bit_weights);
@@ -709,6 +709,7 @@ void forward_convolutional_layer(convolutional_layer l, network_state state)
 
         //gemm(0,0,m,n,k,1,a,k,b,n,1,c,n);
         //gemm_nn_custom(m, n, k, 1, a, k, b, n, c, n);
+		//也不会执行
         if (l.xnor && (l.stride == 1 && l.pad == 1)) {
             memset(b, 0, l.bit_align*l.size*l.size*l.c * sizeof(float));
             //im2col_cpu_custom_align(state.input, l.c, l.h, l.w, l.size, l.stride, l.pad, b, l.bit_align);

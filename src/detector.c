@@ -1130,11 +1130,59 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
         //box *boxes = calloc(l.w*l.h*l.n, sizeof(box));
         //float **probs = calloc(l.w*l.h*l.n, sizeof(float *));
         //for(j = 0; j < l.w*l.h*l.n; ++j) probs[j] = calloc(l.classes, sizeof(float *));
-
-        float *X = sized.data;
-		
+        float *X = sized.data;		
         time= what_time_is_it_now();
-        network_predict(net, X);
+		static float Y[519168];
+		for (int i = 0; i < 519168; i++)
+		{
+			Y[i] = X[i];
+		}
+		
+
+		    network_state state;
+		    state.net = net;
+		    state.index = 0;
+		    state.input = Y;//这里应该是动态分配的。
+		    state.truth = 0;
+		    state.train = 0;
+		    state.delta = 0;
+		    //forward_network(net, state);
+			state.workspace = net.workspace;
+			int i;
+			//第一层
+			state.index = 0;
+			layer l_0 = net.layers[0];
+			static float l_0_outputs[5537792];
+			mall_ptr_array(l_0_outputs, l_0.output);
+
+			//做个实验，写个函数，如何把 l_0_outputs[5537792] 和 l_0.outputs作为参数，使l_0_outputs的取值和l_0.outputs一样。
+			forward_convolutional_layer(l_0, state);
+			state.input = l_0.output;
+
+			//再写第二层
+			layer l_1 = net.layers[1];
+			forward_maxpool_layer(l_1, state);
+			state.input = l_1.output;
+
+			//这样依次完成第三层->第n层。
+
+
+
+			for (i = 2; i < net.n; ++i) {
+				state.index = i;
+				layer l = net.layers[i];
+
+				//printf("%f", *l.delta);
+				//这部分功能没有用到。delta全部设为0.
+				//if (l.delta) {
+				//	scal_cpu(l.outputs * l.batch, 0, l.delta, 1);
+				//}
+				l.forward(l, state);
+				state.input = l.output;
+			}
+		    //float *out = get_network_output(net);
+
+        //network_predict(net, X);
         //network_predict_image(&net, im); letterbox = 1;
         printf("%s: Predicted in %f seconds.\n", input, (what_time_is_it_now()-time));
         //get_region_boxes(l, 1, 1, thresh, probs, boxes, 0, 0);

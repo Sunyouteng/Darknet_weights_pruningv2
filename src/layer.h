@@ -72,7 +72,7 @@ struct layer{
     int forced;
     int flipped;
     int inputs;
-    int outputs;
+    int outputs;//输出数组的元素个数。
     int truths;
     int h,w,c;
     int out_h, out_w, out_c;
@@ -188,7 +188,7 @@ struct layer{
     int   * input_layers;
     int   * input_sizes;
     float * delta;
-    float * output;
+    float * output;//指向某层的输出结果数组的指针。
     float * squared;
     float * norms;
 

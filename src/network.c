@@ -197,7 +197,8 @@ void forward_network(network net, network_state state)
     for(i = 0; i < net.n; ++i){
         state.index = i;
         layer l = net.layers[i];
-        if(l.delta){
+		printf("%f", *l.delta);
+        if(l.delta){//这部分功能没有用到。delta全部设为0.
             scal_cpu(l.outputs * l.batch, 0, l.delta, 1);
         }
         l.forward(l, state);
@@ -548,6 +549,7 @@ float *network_predict(network net, float *input)
     float *out = get_network_output(net);
     return out;
 }
+
 
 int num_detections(network *net, float thresh)
 {
