@@ -1,4 +1,5 @@
 #include "network.h"
+#include<malloc.h>
 void Print_net(network* net) {
 
 	for (int i = 0; i < net->n-1; i++) {
@@ -8,12 +9,8 @@ void Print_net(network* net) {
 }
 
 void mall_ptr_array(float * sized, float* mall_ptr) {
-	for (int i = 0; i < 5537792; i++) {
-		if (mall_ptr + i)
+	for (int i = 0; i < _msize(mall_ptr)/sizeof(float); i++) {
 			sized[i] = mall_ptr[i];
-		else
-			return;
 	}
-		
-
+	return;
 }
