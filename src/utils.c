@@ -287,6 +287,7 @@ void malloc_error()
 void file_error(char *s)
 {
     fprintf(stderr, "Couldn't open file: %s\n", s);
+	system("pause");
     exit(EXIT_FAILURE);
 }
 

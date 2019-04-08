@@ -33,7 +33,9 @@
 #include "upsample_layer.h"
 #include "yolo_layer.h"
 #include <stdint.h>
-
+#include"my.h"
+#include"layer.h"
+#include <malloc.h>
 typedef struct{
     char *type;
     list *options;
@@ -700,11 +702,12 @@ network parse_network_cfg(char *filename)
 }
 
 network parse_network_cfg_custom(char *filename, int batch)
-{
-    list *sections = read_cfg(filename);//返回配置文件中的所有配置，信息。链表sections可以把所有cfg中的信息都串起来。
+{//返回配置文件中的所有配置，信息。链表sections可以把所有cfg中的信息都串起来。
+    list *sections = read_cfg(filename);
     node *n = sections->front;//链表头节点，即配置文件的第一部分
     if(!n) error("Config file has no sections");
-    network net = make_network(sections->size - 1);//为什么是-1，可能是因为cfg文件第一部分是并不是某层的参数，而是整个网络的一些参数。
+    network net = make_network(sections->size - 1);
+	//为什么是-1，可能是因为cfg文件第一部分是并不是某层的参数，而是整个网络的一些参数。
 	//在这个函数里确定了network的n，layers，seen的属性。
 	//只是开辟了size-1个指向layer的指针空间，然后等待赋值。
     net.gpu_index = gpu_index;
@@ -714,14 +717,33 @@ network parse_network_cfg_custom(char *filename, int batch)
     list *options = s->options;//第一部分，网络参数部分链表options
     if(!is_network(s)) error("First section must be [net] or [network]");
     parse_net_options(options, &net);//结构体Network中的大部分属性被赋值，配置文件的第一部分的值应该都读到了network的属性中，
-
-    params.h = net.h;
-    params.w = net.w;
-    params.c = net.c;
-    params.inputs = net.inputs;//输入维度，长×宽×通道
-    if (batch > 0) net.batch = batch;
-    params.batch = net.batch;
-    params.time_steps = net.time_steps;
+/*
+[net]
+batch=1
+subdivisions=1
+width=416
+height=416
+channels=3
+momentum=0.9
+decay=0.0005
+angle=0
+saturation = 1.5
+exposure = 1.5
+hue=.1
+learning_rate=0.001
+burn_in=1000
+max_batches = 500200
+policy=steps//学习率衰减策略
+steps=400000,450000
+scales=.1,.1
+*/
+    params.h = net.h;//416
+    params.w = net.w;//416
+    params.c = net.c;//3
+    params.inputs = net.inputs;//输入维度，长×宽×通道=519168
+    if (batch > 0) net.batch = batch;//1
+    params.batch = net.batch;//1
+    params.time_steps = net.time_steps;//1
     params.net = net;
 
     float bflops = 0;
@@ -733,7 +755,7 @@ network parse_network_cfg_custom(char *filename, int batch)
     while(n){
         params.index = count;
         fprintf(stderr, "%4d ", count);
-        s = (section *)n->val;
+        s = (section *)n->val;//指向该layer的所有配置参数链表s->options
         options = s->options;//此时，options即为指向一个layer的参数。
         layer l = {0};//初始化一个layer
         LAYER_TYPE lt = string_to_layer_type(s->type);
@@ -800,7 +822,7 @@ network parse_network_cfg_custom(char *filename, int batch)
         option_unused(options);
         net.layers[count] = l;//之前已经申请了n个指向layer的指针，现在赋值，指向某个layer。
         if (l.workspace_size > workspace_size) workspace_size = l.workspace_size;
-        free_section(s);
+        free_section(s);//选取某层最大的workspace_size作为net.workspace。
         n = n->next;//指向下一个节点
         ++count;
         if(n){
@@ -823,7 +845,7 @@ network parse_network_cfg_custom(char *filename, int batch)
         }else {
             net.workspace = calloc(1, workspace_size);
         }
-#else
+#else//workspace = l.out_h*l.out_w*l.size*l.size*l.c*sizeof(float)
         net.workspace = calloc(1, workspace_size);
 #endif
     }
@@ -849,9 +871,11 @@ list *read_cfg(char *filename)
         ++ nu;
         strip(line);//去除各种空格
         switch(line[0]){
-            case '[':
+            case '['://如果是一个新的层，则分配一个section，然后插入到sections中。
                 current = malloc(sizeof(section));
-                list_insert(sections, current);//链表尾插，插入的应该是另外一串链表，因为section中含有指向链表的指针。
+                list_insert(sections, current);
+				//链表尾插，插入的应该是另外一串链表，因为section中含有指向链表的指针。
+				//options属性指向另外一个链表，在这个链表中配置各个参数。
                 current->options = make_list();
                 current->type = line;
 //这里line就是对应的配置文件的中『』内层的类型，然后循环终止，开始读取下一行，这里让opitions指向一个链表，然后准备下个循环进行复制。
@@ -861,7 +885,7 @@ list *read_cfg(char *filename)
             case ';':
                 free(line);
                 break;
-            default:
+            default://line为某一行的参数，将其赋值到current->options链表中串起来。
                 if(!read_option(line, current->options)){
                     fprintf(stderr, "Config file error line %d, could parse: %s\n", nu, line);
                     free(line);
@@ -916,8 +940,8 @@ void save_convolutional_weights(layer l, FILE *fp)
         pull_convolutional_layer(l);
     }
 #endif
-    int num = l.n*l.c*l.size*l.size;
-    fwrite(l.biases, sizeof(float), l.n, fp);
+    int num = l.n*l.c*l.size*l.size;//这里需要更改。n已经减少了。
+    fwrite(l.biases, sizeof(float), l.n, fp);//先写进去偏倚
     if (l.batch_normalize){
         fwrite(l.scales, sizeof(float), l.n, fp);
         fwrite(l.rolling_mean, sizeof(float), l.n, fp);
@@ -968,7 +992,7 @@ void save_weights_upto(network net, char *filename, int cutoff)
     fprintf(stderr, "Saving weights to %s\n", filename);
     FILE *fp = fopen(filename, "wb");
     if(!fp) file_error(filename);
-
+	//
     int major = 0;
     int minor = 1;
     int revision = 0;
@@ -1099,6 +1123,128 @@ void load_convolutional_weights_binary(layer l, FILE *fp)
 #endif
 }
 
+int* load_convolutional_weights_prune(layer* l, FILE *fp, int nth_layer, int prune_filters)
+{/*
+ 功能说明：对待修剪的卷积层剪掉相应的卷积核
+ 返回只：待修建卷积核的索引，所谓下一个卷积层待删除的通道数的索引。
+ */
+	if (l->binary) {
+		//load_convolutional_weights_binary(l, fp);
+		//return;
+	}
+	int num = l->n*l->c*l->size*l->size;// l.n表示filter的个数，size是卷积核的尺寸。
+	fread(l->biases, sizeof(float), l->n, fp);//先加载偏倚
+	if (l->batch_normalize && (!l->dontloadscales)) {
+		fread(l->scales, sizeof(float), l->n, fp);
+		fread(l->rolling_mean, sizeof(float), l->n, fp);
+		fread(l->rolling_variance, sizeof(float), l->n, fp);
+		if (0) {
+			int i;
+			for (i = 0; i < l->n; ++i) {
+				printf("%g, ", l->rolling_mean[i]);
+			}
+			printf("\n");
+			for (i = 0; i < l->n; ++i) {
+				printf("%g, ", l->rolling_variance[i]);
+			}
+			printf("\n");
+		}
+		if (0) {
+			fill_cpu(l->n, 0, l->rolling_mean, 1);
+			fill_cpu(l->n, 0, l->rolling_variance, 1);
+		}
+	}
+	fread(l->weights, sizeof(float), num, fp);//再加载权值
+	int *filter_num = (int*)safe_malloc(sizeof(int)*prune_filters);
+	//数组filter_num保存了最小prune_filters个卷积核的索引。#include<malloc.h>
+	filter_num = sort_filters(l->weights,l->biases, l->n, prune_filters);
+	
+	int size_per_filter = l->c*l->size*l->size;
+	int rest_filters = l->n - prune_filters;
+	l->n = l->n - prune_filters;//这里更改不起作用，传递的只是layer的副本。
+	l->weights = prune_weights(l->weights, filter_num, size_per_filter, rest_filters);
+	printf("after prune weight of this layer,we have %d elements\n", (_msize(l->weights) / sizeof(float)));
+	l->scales = prune_bias(l->scales, filter_num, rest_filters);
+	l->rolling_mean = prune_bias(l->rolling_mean, filter_num, rest_filters);
+	printf("after prune rolling_mean of this layer,we have %d elements\n", (_msize(l->rolling_mean) / sizeof(float)));
+	l->rolling_variance = prune_bias(l->rolling_variance, filter_num, rest_filters);
+	printf("after prune rolling_variance of this layer,we have %d elements\n", (_msize(l->rolling_variance) / sizeof(float)));
+	l->biases = prune_bias(l->biases, filter_num, rest_filters);
+	printf("after prune bias of this layer,we have %d elements\n", (_msize(l->biases) / sizeof(float)));
+	
+	if (l->adam) {
+		fread(l->m, sizeof(float), num, fp);
+		fread(l->v, sizeof(float), num, fp);
+	}
+	//if(l.c == 3) scal_cpu(num, 1./256, l.weights, 1);
+	if (l->flipped) {
+		transpose_matrix(l->weights, l->c*l->size*l->size, l->n);
+	}
+	
+	//if (l.binary) binarize_weights(l.weights, l.n, l.c*l.size*l.size, l.weights);
+#ifdef GPU
+	if (gpu_index >= 0) {
+		push_convolutional_layer(l);
+	}
+#endif
+	return filter_num;
+}
+void load_convolutional_weights_prune_nextlayer(layer* l, FILE *fp, int* channel_index)
+{/*
+ 功能说明：对待修剪的卷积层的下一层剪掉相应的通道数
+ 参数说明：nth_layer_next 被动裁减层的索引
+		 ：channel_index 待修建的通道
+ */
+	if (l->binary) {
+		//load_convolutional_weights_binary(l, fp);
+		//return;
+	}
+	int num = l->n*l->c*l->size*l->size;// l.n表示filter的个数，size是卷积核的尺寸。
+	fread(l->biases, sizeof(float), l->n, fp);//先加载偏倚
+	if (l->batch_normalize && (!l->dontloadscales)) {
+		fread(l->scales, sizeof(float), l->n, fp);
+		fread(l->rolling_mean, sizeof(float), l->n, fp);
+		fread(l->rolling_variance, sizeof(float), l->n, fp);
+		if (0) {
+			int i;
+			for (i = 0; i < l->n; ++i) {
+				printf("%g, ", l->rolling_mean[i]);
+			}
+			printf("\n");
+			for (i = 0; i < l->n; ++i) {
+				printf("%g, ", l->rolling_variance[i]);
+			}
+			printf("\n");
+		}
+		if (0) {
+			fill_cpu(l->n, 0, l->rolling_mean, 1);
+			fill_cpu(l->n, 0, l->rolling_variance, 1);
+		}
+	}
+	fread(l->weights, sizeof(float), num, fp);//再加载权值
+	int size_per_filter = l->c*l->size*l->size;
+	l->weights = prune_weights_nextlayer(l->weights, l->size,l->c, l->n, channel_index);
+	printf("after prune weight of this layer,we have %d elements", (_msize(l->weights) / sizeof(float)));
+	////这里l.c要变小了。因为需要裁减通道。l.c =l.c - channel_index的长度
+	l->c = l->c - _msize(channel_index) / sizeof(int);
+	printf("new channel is  %d \n", l->c);
+	if (l->adam) {
+		fread(l->m, sizeof(float), num, fp);
+		fread(l->v, sizeof(float), num, fp);
+	}
+	//if(l.c == 3) scal_cpu(num, 1./256, l.weights, 1);
+	if (l->flipped) {
+		transpose_matrix(l->weights, l->c*l->size*l->size, l->n);
+	}
+
+	//if (l.binary) binarize_weights(l.weights, l.n, l.c*l.size*l.size, l.weights);
+#ifdef GPU
+	if (gpu_index >= 0) {
+		push_convolutional_layer(l);
+	}
+#endif
+
+}
 void load_convolutional_weights(layer l, FILE *fp)
 {
     if(l.binary){
@@ -1128,6 +1274,7 @@ void load_convolutional_weights(layer l, FILE *fp)
         }
     }
     fread(l.weights, sizeof(float), num, fp);//再加载权值
+
     if(l.adam){
         fread(l.m, sizeof(float), num, fp);
         fread(l.v, sizeof(float), num, fp);
@@ -1178,6 +1325,7 @@ void load_weights_upto(network *net, char *filename, int cutoff)
     int i;//这里的cutoff可以等于n，可以小于n， 小于n时，就成了只去前面cutoff层的权值了，所以叫cutoff.
     for(i = 0; i < net->n && i < cutoff; ++i){
         layer l = net->layers[i];
+		//printf("layer type: %d\n", l.type);
         if (l.dontload) continue;
         if(l.type == CONVOLUTIONAL){
             load_convolutional_weights(l, fp);
@@ -1222,8 +1370,123 @@ void load_weights_upto(network *net, char *filename, int cutoff)
     fclose(fp);
 }
 
+void load_weights_upto_debug(network *net, char *filename, int cutoff, int nth_layer,float percent)
+{
+#ifdef GPU
+	if (net->gpu_index >= 0) {
+		cuda_set_device(net->gpu_index);
+	}
+#endif
+	
+	fprintf(stderr, "Loading weights from %s...", filename);
+	fflush(stdout);
+	FILE *fp = fopen(filename, "rb");
+	if (!fp) file_error(filename);
+
+	int major;
+	int minor;
+	int revision;
+	fread(&major, sizeof(int), 1, fp);
+	fread(&minor, sizeof(int), 1, fp);
+	fread(&revision, sizeof(int), 1, fp);
+	if ((major * 10 + minor) >= 2) {
+		printf("\n seen 64 \n");
+		uint64_t iseen = 0;
+		fread(&iseen, sizeof(uint64_t), 1, fp);//占64位
+		*net->seen = iseen;
+	}
+	else {
+		printf("\n seen 32 \n");
+		fread(net->seen, sizeof(int), 1, fp);//占32位
+	}
+	int transpose = (major > 1000) || (minor > 1000);
+	//transpose = 0
+	// 
+	int i;//这里的cutoff可以等于n，可以小于n， 小于n时，就成了只取前面cutoff层的权值了，所以叫cutoff.
+	//层与层的计算也就是循环之间的计算需要传递 待剪切索引的数组，因此把这个数组的空间的申请放在循环外
+	//这样就保证了卷积核个数并不随着层的变化而变化。保证数组空间大小不变。
+	layer l_get_prune_num = net->layers[nth_layer];
+	int prune_num = percent*l_get_prune_num.n;
+	int* index_array = (int*)safe_malloc(sizeof(int)*prune_num);
+	//int num3 = _msize(index_array) / sizeof(int);
+	for (i = 0; i < net->n && i < cutoff; ++i) {
+		layer l = net->layers[i];
+		 
+		char* layertype[] = { "CONVOLUTIONAL","DECONVOLUTIONAL","CONNECTED","MAXPOOL","SOFTMAX",
+			"DETECTION","DROPOUT","CROP","ROUTE","COST","NORMALIZATION",
+			"AVGPOOL","LOCAL","SHORTCUT","ACTIVE","RNN","GRU","CRNN","BATCHNORM",
+			"NETWORK","XNOR","REGION","YOLO","REORG","UPSAMPLE","REORG_OLD","BLANK"};
+		printf("%dth layer type: %s\n",i, layertype[l.type]);//打印该层类型
+		if (l.dontload) continue;
+		if (l.type == CONVOLUTIONAL && i == nth_layer)
+		{
+			
+			printf("pruning %dth layer's %d filters", nth_layer, prune_num);
+			index_array= load_convolutional_weights_prune(&l, fp, nth_layer, prune_num);
+			net->layers[i] = l;
+			printf("new l.n : %d \n", net->layers[i].n);
+			//int num2 = _msize(index_array) / sizeof(int);
+		}
+		else if (l.type == CONVOLUTIONAL && check_next_layer(net,i,nth_layer))
+		{
+			//int num = _msize(index_array) / sizeof(int);
+			for (int i = 0; i < prune_num; i++)
+				printf("%d\n", index_array[i]);
+			load_convolutional_weights_prune_nextlayer(&l, fp, index_array);
+			net->layers[i] = l;
+		}
+		else if (l.type == CONVOLUTIONAL)
+		  {
+			load_convolutional_weights(l, fp);
+		}
+		if (l.type == CONNECTED) {
+			load_connected_weights(l, fp, transpose);
+		}
+		if (l.type == BATCHNORM) {
+			load_batchnorm_weights(l, fp);
+		}
+		if (l.type == CRNN) {
+			load_convolutional_weights(*(l.input_layer), fp);
+			load_convolutional_weights(*(l.self_layer), fp);
+			load_convolutional_weights(*(l.output_layer), fp);
+		}
+		if (l.type == RNN) {
+			load_connected_weights(*(l.input_layer), fp, transpose);
+			load_connected_weights(*(l.self_layer), fp, transpose);
+			load_connected_weights(*(l.output_layer), fp, transpose);
+		}
+		if (l.type == GRU) {
+			load_connected_weights(*(l.input_z_layer), fp, transpose);
+			load_connected_weights(*(l.input_r_layer), fp, transpose);
+			load_connected_weights(*(l.input_h_layer), fp, transpose);
+			load_connected_weights(*(l.state_z_layer), fp, transpose);
+			load_connected_weights(*(l.state_r_layer), fp, transpose);
+			load_connected_weights(*(l.state_h_layer), fp, transpose);
+		}
+		if (l.type == LOCAL) {
+			int locations = l.out_w*l.out_h;
+			int size = l.size*l.size*l.c*l.n*locations;
+			fread(l.biases, sizeof(float), l.outputs, fp);
+			fread(l.weights, sizeof(float), size, fp);
+#ifdef GPU
+			if (gpu_index >= 0) {
+				push_local_layer(l);
+			}
+#endif
+		}
+	}
+	printf("before save weights layer0.n %d\n", net->layers[0].n);
+	fprintf(stderr, "Done!\n");
+	fclose(fp);
+}
+void load_weights_debug(network *net, char *filename,char*nth_layer,char*pertentage)
+{
+	int n_layer = atoi(nth_layer);
+	float percent = atof(pertentage);
+    load_weights_upto_debug(net, filename, net->n, n_layer, percent);
+}
 void load_weights(network *net, char *filename)
 {
-    load_weights_upto(net, filename, net->n);
-}
 
+	load_weights_upto(net, filename, net->n);
+}

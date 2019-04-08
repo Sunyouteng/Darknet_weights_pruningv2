@@ -561,6 +561,9 @@ void gemm_nn(int M, int N, int K, float ALPHA,
     float *B, int ldb,
     float *C, int ldc)
 {
+	//int ta = _msize(A) / sizeof(float);
+	//int tb = _msize(B) / sizeof(float);
+	//int tc = _msize(C) / sizeof(float);
     int i, j, k;
     if (is_avx() == 1) {    // AVX
         for (i = 0; i < M; ++i) {
@@ -2021,7 +2024,23 @@ void gemm_tt(int M, int N, int K, float ALPHA,
         }
     }
 }
+void l0_gemm_cpu(int TA, int TB, int M, int N, int K, float ALPHA,
+	float A[864], int lda,
+	float B[12460032], int ldb,
+	float BETA,
+	float C[5537792], int ldc)
+{
+	printf("cpu: %d %d %d %d %d %f %d %d %f %d\n", TA, TB, M, N, K, ALPHA, lda, ldb, BETA, ldc);
+	//int ta = _msize(A) / sizeof(float);//864
+	//int tb = _msize(B) / sizeof(float);//12460032
+	//int tc = _msize(C) / sizeof(float);//5537792
 
+	int t;
+	#pragma omp parallel for
+	for (t = 0; t < M; ++t) {	
+		gemm_nn(1, N, K, ALPHA, A + t*lda, lda, B, ldb, C + t*ldc, ldc);
+	}
+}
 
 void gemm_cpu(int TA, int TB, int M, int N, int K, float ALPHA,
         float *A, int lda,

@@ -348,18 +348,28 @@ void visualize(char *cfgfile, char *weightfile)
 #endif
 }
 
-#define CONFGFILE "cfg/yolov2.cfg"
-#define WEIGHTFILE "yolov2.weights"
-#define FILENAME "data/dog.jpg"
-
-int main()
+#define CONFGFILE "cfg/yolov2-voc.cfg"
+#define WEIGHTFILE "yolov2-voc.weights"
+//同正常的可运行版本差别是，删除了run_yolo这个函数的实现。
+int main(int argc, char** argv)
 {
+	if (argc < 3) 
+	{
+		printf("usage: .exe nth_layer percentage~~");
+		system("pause");
+		exit(1);
 
-	float thresh = 0.5;
-
-
-	test_detector("cfg/coco.data", CONFGFILE, WEIGHTFILE, FILENAME, thresh, .5, 0, 1);
-
+	}
+	network net = parse_network_cfg_custom(argv[1], 1);    // set batch=1
+	if (argv[2]) {//函数参数为指向net的引用，
+		load_weights_debug(&net, argv[2],argv[3], argv[4]);
+	}
+	char buff[256];
+	char *backup_directory = "F:\\Syt\\darknet-master_alex\\darknet-master_copy\\build\\darknet\\x64\\backup";
+	sprintf(buff, "%s\\conv_%s_percent_%s.weights", backup_directory, argv[3], argv[4]);
+	//printf("before save weights layer0.n %d\n",net.layers[0].n);
+	save_weights(net, buff);
+	printf("save weights done\n");
 	return 0;
 }
 

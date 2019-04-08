@@ -197,7 +197,7 @@ void forward_network(network net, network_state state)
     for(i = 0; i < net.n; ++i){
         state.index = i;
         layer l = net.layers[i];
-		printf("%f", *l.delta);
+		//printf("%f", *l.delta);
         if(l.delta){//这部分功能没有用到。delta全部设为0.
             scal_cpu(l.outputs * l.batch, 0, l.delta, 1);
         }

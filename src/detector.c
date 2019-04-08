@@ -7,7 +7,7 @@
 #include "demo.h"
 #include "option_list.h"
 #include <malloc.h>
-
+#include"my_change.h"
 #ifdef OPENCV
 #include "opencv2/highgui/highgui_c.h"
 #include "opencv2/core/core_c.h"
@@ -1133,14 +1133,11 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
         //for(j = 0; j < l.w*l.h*l.n; ++j) probs[j] = calloc(l.classes, sizeof(float *));
         float *X = sized.data;		
         time= what_time_is_it_now();
-		static float Y[519168];
-		
-		
-		mall_ptr_array(Y, X);
+
 		    network_state state;
 		    state.net = net;
 		    state.index = 0;
-		    state.input = Y;//这里应该是动态分配的。
+		    state.input = X;
 		    state.truth = 0;
 		    state.train = 0;
 		    state.delta = 0;
@@ -1149,31 +1146,20 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
 			int i;
 			//第一层
 			state.index = 0;
-			layer l_old_0 = net.layers[0];
 			layer l_new_0 = net.layers[0];
+//		    int t = _msize(state.workspace) / sizeof(float);
+			//static float l_0_bias[32];
+			//static float l_0_scales[32];
+			//static float l_0_rolling_mean[32];
+			//static float l_0_variance[32];
+			//static float l_0_rolling_variance[32];
+			//static float l_0_weights[864];
 
-			static float l_0_bias[32];
-			static float l_0_scales[32];
-			static float l_0_rolling_mean[32];
-			static float l_0_rolling_variance[32];
-			static float l_0_weights[864];
-			mall_ptr_array(l_0_bias, l_old_0.biases);
-			mall_ptr_array(l_0_scales, l_old_0.scales);
-			mall_ptr_array(l_0_rolling_mean, l_old_0.rolling_mean);
-			mall_ptr_array(l_0_rolling_mean, l_old_0.rolling_variance);
-			mall_ptr_array(l_0_weights, l_old_0.weights);
-			l_new_0.biases = l_0_bias;
-			l_new_0.scales = l_0_scales;
-			l_new_0.rolling_mean = l_0_rolling_mean;
-			l_new_0.rolling_variance = l_0_rolling_variance;
-			l_new_0.weights = l_0_weights;
-		
-			forward_convolutional_layer(l_new_0, state);
-			static float l_0_outputs[5537792];
-			mall_ptr_array(l_0_outputs, l_new_0.output);
-			state.input = l_0_outputs;
-
+			l0_forward_convolutional_layer(l_new_0, state);
+			
+			state.input = l_new_0.output;
 			//再写第二层
+			state.index = 1;
 			layer l_1 = net.layers[1];
 			forward_maxpool_layer(l_1, state);
 			state.input = l_1.output;

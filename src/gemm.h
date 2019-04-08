@@ -69,6 +69,11 @@ void gemm(int TA, int TB, int M, int N, int K, float ALPHA,
                     float *B, int ldb,
                     float BETA,
                     float *C, int ldc);
+void l0_gemm_cpu(int TA, int TB, int M, int N, int K, float ALPHA,
+	float A[864], int lda,
+	float B[12460032], int ldb,
+	float BETA,
+	float C[5537792], int ldc);
 
 void gemm_cpu(int TA, int TB, int M, int N, int K, float ALPHA,
         float *A, int lda,
