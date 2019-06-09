@@ -1,4 +1,5 @@
-This project is based on https://github.com/AlexeyAB and developend to prune Darknet weights file as your will
+This project is based on https://github.com/AlexeyAB and developend to prune Darknet weights file as your will.
+
 Steps to use it 
 
 1 build this project as the original Darknet for windows from  https://github.com/AlexeyAB;
