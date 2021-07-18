@@ -1,3 +1,4 @@
+change to pruning branch to see src PLZ
 This project is based on https://github.com/AlexeyAB and developend to prune Darknet weights file as your will.
 
 Steps to use it 
